@@ -6,6 +6,7 @@ const moderate = require('../middleware/moderate');
 const auth = require('../middleware/auth');
 const router = express.Router();
 
+//Generate story 
 router.post('/generate', auth, moderate, async (req, res) => {
   try {
     const { prompt, userId } = req.body;
@@ -58,6 +59,7 @@ router.post('/generate', auth, moderate, async (req, res) => {
     res.status(500).json({ error: 'Failed to generate story' });
   }
 });
+
 
 router.get('/:id', auth, async (req, res) => {
   try {
