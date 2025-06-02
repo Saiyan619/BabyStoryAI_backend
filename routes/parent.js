@@ -7,6 +7,8 @@ const User = require('../models/User');
 const auth = require('../middleware/auth');
 const sendEmail = require('../utils/sendEmail');
 const passport = require('../passport');
+const Settings = require('../models/Settings');
+const { body, validationResult } = require('express-validator');
 
 // Google OAuth
 router.get(
@@ -22,7 +24,6 @@ router.get(
     res.redirect(`http://localhost:5173/auth/callback?token=${token}`);
   }
 );
-
 // Register
 router.post('/register', async (req, res) => {
   const { email, password, name } = req.body;
@@ -33,6 +34,18 @@ router.post('/register', async (req, res) => {
     }
     user = new User({ email, password, name });
     await user.save();
+
+    // Create default settings for the new user
+    const settings = new Settings({
+      userId: user._id,
+      storyLength: 'short',
+      allowedThemes: ['adventure', 'animals', 'fantasy'],
+      timeLimit: 30,
+      voiceInput: true,
+      illustrations: true,
+    });
+    await settings.save();
+
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '30d' });
     res.json({ token });
   } catch (error) {
@@ -40,6 +53,7 @@ router.post('/register', async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+
 
 // Login
 router.post('/login', async (req, res) => {
@@ -156,6 +170,62 @@ router.get('/me', auth, async (req, res) => {
     res.json(user);
   } catch (error) {
     console.error('Me error:', error.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Update Parental Settings
+router.put(
+  '/settings',
+  auth,
+  [
+    body('storyLength').optional().isIn(['short', 'medium', 'long']).withMessage('Invalid story length'),
+    body('allowedThemes').optional().isArray().withMessage('Themes must be an array'),
+    body('timeLimit').optional().isInt({ min: 0 }).withMessage('Time limit must be a non-negative integer'),
+    body('voiceInput').optional().isBoolean().withMessage('Voice input must be a boolean'),
+    body('illustrations').optional().isBoolean().withMessage('Illustrations must be a boolean'),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { storyLength, allowedThemes, timeLimit, voiceInput, illustrations } = req.body;
+      const updateData = {};
+      if (storyLength) updateData.storyLength = storyLength;
+      if (allowedThemes) updateData.allowedThemes = allowedThemes;
+      if (timeLimit !== undefined) updateData.timeLimit = timeLimit;
+      if (voiceInput !== undefined) updateData.voiceInput = voiceInput;
+      if (illustrations !== undefined) updateData.illustrations = illustrations;
+
+      let settings = await Settings.findOne({ userId: req.user.id });
+      if (!settings) {
+        settings = new Settings({
+          userId: req.user.id,
+          ...updateData,
+        });
+      } else {
+        Object.assign(settings, updateData);
+      }
+      await settings.save();
+
+      res.json(settings);
+    } catch (error) {
+      console.error('Settings update error:', error.message);
+      res.status(500).json({ error: 'Server error' });
+    }
+  }
+);
+
+// Get Stories for Parental Review
+router.get('/stories', auth, async (req, res) => {
+  try {
+    const stories = await Story.find({ userId: req.user.id, approved: false });
+    res.json(stories);
+  } catch (error) {
+    console.error('Fetch stories error:', error.message);
     res.status(500).json({ error: 'Server error' });
   }
 });

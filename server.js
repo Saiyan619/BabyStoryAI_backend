@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const session = require('express-session');
 const passport = require('./passport');
 const parentRoutes = require('./routes/parent');
+const storyRoutes = require('./routes/story')
 const cors = require('cors');
 
 const app = express();
@@ -33,6 +34,8 @@ mongoose.connect(process.env.MONGO_URI)
   .catch(err => console.error('MongoDB error:', err.message));
 
 app.use('/api/parent', parentRoutes);
+app.use('/api/story', storyRoutes);
+
 
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

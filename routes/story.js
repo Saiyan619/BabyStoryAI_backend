@@ -9,21 +9,26 @@ const router = express.Router();
 //Generate story 
 router.post('/generate', auth, moderate, async (req, res) => {
   try {
-    const { prompt, userId } = req.body;
+    const { prompt } = req.body;
+const userId = req.user.id;
 
-    if (userId !== req.user.id) return res.status(403).json({ error: 'Unauthorized' });
-
-    const settings = await Settings.findOne({ userId });
-    const promptLower = prompt.toLowerCase();
-    const isAllowed = settings.allowedThemes.some(theme => promptLower.includes(theme.toLowerCase()));
-    if (!isAllowed) {
-      return res.status(400).json({ error: 'Prompt does not match allowed themes' });
+  // Fetch settings for storyLength, use default if missing
+    let settings = await Settings.findOne({ userId });
+    if (!settings) {
+      console.log(`No settings found for userId: ${userId}, using default storyLength`);
+      settings = { storyLength: 'short' };
     }
+    // const settings = await Settings.findOne({ userId });
+    const promptLower = prompt.toLowerCase();
+    // const isAllowed = userId.allowedThemes.some(theme => promptLower.includes(theme.toLowerCase()));
+    // if (!isAllowed) {
+    //   return res.status(400).json({ error: 'Prompt does not match allowed themes' });
+    // }
 
-    const maxLength = settings.storyLength === 'short' ? 200 : settings.storyLength === 'medium' ? 400 : 600;
+    const maxLength = userId.storyLength === 'short' ? 5000 : userId.storyLength === 'medium' ? 9000 : 12000;
     const storyPrompt = `Write a fun, safe story for a 6-year-old about ${prompt}. Keep it happy, appropriate, and under ${maxLength} characters.`;
     const response = await axios.post(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
       {
         contents: [
           {
@@ -40,20 +45,21 @@ router.post('/generate', auth, moderate, async (req, res) => {
 
     const storyText = response.data.candidates[0].content.parts[0].text;
 
-    const theme = promptLower.includes('pirate') ? 'pirate' :
-                  promptLower.includes('animal') ? 'animals' :
-                  promptLower.includes('robot') ? 'robot' :
-                  'fantasy';
+    // const theme = promptLower.includes('pirate') ? 'pirate' :
+    //               promptLower.includes('animal') ? 'animals' :
+    //               promptLower.includes('robot') ? 'robot' :
+    //               'fantasy';
 
     const story = new Story({
       userId,
       prompt,
       text: storyText,
-      theme,
+      // theme,
     });
     await story.save();
 
-    res.json({ storyId: story._id, text: storyText, theme });
+    // res.json({ storyId: story._id, text: storyText, theme });
+    res.json({ storyId: story._id, text: storyText });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to generate story' });
