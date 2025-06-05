@@ -9,7 +9,7 @@ const moderate = (req, res, next) => {
   const { prompt } = req.body;
   
 
-  if (blocklist.some(word => prompt.toLowerCase().includes(word))) {
+  if (blocklist.some(word => prompt?.toLowerCase().includes(word))) {
     return res.status(400).json({ error: 'Please try a happier idea!' });
   }
 

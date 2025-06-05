@@ -35,6 +35,8 @@ mongoose.connect(process.env.MONGO_URI)
 
 app.use('/api/parent', parentRoutes);
 app.use('/api/story', storyRoutes);
+const path = require('path');
+app.use('/tts', express.static(path.join(__dirname, 'public/tts')));
 
 
 const PORT = process.env.PORT || 8000;

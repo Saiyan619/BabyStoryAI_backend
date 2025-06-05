@@ -174,6 +174,67 @@ router.get('/me', auth, async (req, res) => {
   }
 });
 
+// Update User Profile
+router.put('/me', auth, async (req, res) => {
+  try {
+    const { name, email } = req.body;
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check for email conflict if updating email
+    if (email && email !== user.email) {
+      const existingUser = await User.findOne({ email });
+      if (existingUser) {
+        return res.status(400).json({ error: 'Email already in use' });
+      }
+      user.email = email;
+    }
+
+    if (name) user.name = name;
+
+    await user.save();
+
+    res.json({
+      message: 'Profile updated successfully',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+      },
+    });
+  } catch (error) {
+    console.error('Update profile error:', error.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
+// Get Parental Settings
+router.get('/settings', auth, async (req, res) => {
+  try {
+    let settings = await Settings.findOne({ userId: req.user.id });
+    if (!settings) {
+      // Return default settings if none exist
+      settings = {
+        userId: req.user.id,
+        storyLength: 'short',
+        allowedThemes: ['adventure', 'animals', 'fantasy'],
+        timeLimit: 30,
+        voiceInput: true,
+        illustrations: true,
+      };
+    }
+    res.json(settings);
+  } catch (error) {
+    console.error('Fetch settings error:', error.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
 // Update Parental Settings
 router.put(
   '/settings',
