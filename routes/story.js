@@ -1,79 +1,15 @@
-const express = require('express');
-const axios = require('axios');
-const Story = require('../models/Story');
-const Settings = require('../models/Settings');
-const moderate = require('../middleware/moderate');
-const auth = require('../middleware/auth');
+const express = require("express");
+const axios = require("axios");
+const Story = require("../models/Story");
+const Settings = require("../models/Settings");
+const moderate = require("../middleware/moderate");
+const auth = require("../middleware/auth");
 const router = express.Router();
-const fs = require('fs');
-const path = require('path');
-const { v4: uuidv4 } = require('uuid');
-const gTTS = require('gtts');
-const cloudinary = require('cloudinary').v2;
-
-//Generate story 
-// router.post('/generate', auth, moderate, async (req, res) => {
-//   try {
-//     const { prompt } = req.body;
-// const userId = req.user.id;
-
-//   // Fetch settings for storyLength, use default if missing
-//     let settings = await Settings.findOne({ userId });
-//     if (!settings) {
-//       console.log(`No settings found for userId: ${userId}, using default storyLength`);
-//       settings = { storyLength: 'short' };
-//     }
-//     // const settings = await Settings.findOne({ userId });
-//     // const promptLower = prompt.toLowerCase();
-//     // const isAllowed = userId.allowedThemes.some(theme => promptLower.includes(theme.toLowerCase()));
-//     // if (!isAllowed) {
-//     //   return res.status(400).json({ error: 'Prompt does not match allowed themes' });
-//     // }
-
-//     const maxLength = userId.storyLength === 'short' ? 5000 : userId.storyLength === 'medium' ? 9000 : 12000;
-//     const storyPrompt = `Write a fun, safe story for a 6-year-old about ${prompt}. Keep it happy, appropriate, and under ${maxLength} characters and also a coverbook image.`;
-//     const response = await axios.post(
-//       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
-//       {
-//         contents: [
-//           {
-//             parts: [
-//               { text: storyPrompt },
-//             ],
-//           },
-//         ],
-//       },
-//       {
-//         params: { key: process.env.GEMINI_API_KEY },
-//       }
-//     );
-
-//     const storyText = response.data.candidates[0].content.parts[0].text;
-
-//     // const theme = promptLower.includes('pirate') ? 'pirate' :
-//     //               promptLower.includes('animal') ? 'animals' :
-//     //               promptLower.includes('robot') ? 'robot' :
-//     //               'fantasy';
-
-//     const story = new Story({
-//       userId,
-//       prompt,
-//       text: storyText,
-//       // theme,
-//     });
-//     await story.save();
-
-//     // res.json({ storyId: story._id, text: storyText, theme });
-//     res.json({ storyId: story._id, text: storyText });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ error: 'Failed to generate story' });
-//   }
-// });
-
-// routes/generate.js
-
-
+const fs = require("fs");
+const path = require("path");
+const { v4: uuidv4 } = require("uuid");
+const gTTS = require("gtts");
+const cloudinary = require("cloudinary").v2;
 
 
 // Cloudinary config
@@ -83,33 +19,37 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-router.post('/generate', auth, moderate, async (req, res) => {
+router.post("/generate", auth, moderate, async (req, res) => {
   try {
     const { prompt } = req.body;
     const userId = req.user.id;
-    console.log(userId)
+    console.log(userId);
 
     // Get user settings or default to short
     let settings = await Settings.findOne({ userId });
     if (!settings) {
-      console.log(`No settings found for userId: ${userId}, using default storyLength`);
-      settings = { storyLength: 'short' };
+      console.log(
+        `No settings found for userId: ${userId}, using default storyLength`
+      );
+      settings = { storyLength: "short" };
     } else {
-      console.log(settings)
+      console.log(settings);
     }
 
     const maxLength =
-      settings.storyLength === 'short'
+      settings.storyLength === "short"
         ? 5000
-        : settings.storyLength === 'medium'
-        ? 9000
-        : 12000;
+        : settings.storyLength === "medium"
+        ? 10000
+        : 20000;
 
+    console.log(settings.storyLength);
+    console.log(settings.childAge);
     // Generate story
-    const storyPrompt = `Write a fun, safe story for a 6-year-old about ${prompt}. Keep it happy, appropriate, and under ${maxLength} characters. adn aslo remove this is your response:**Title:**"**Summary:**`;
+    const storyPrompt = `Write a fun, safe story for a ${settings.childAge}-year-old about ${prompt}. Keep it happy, appropriate, and under ${maxLength} characters. adn aslo remove this is your response:**Title:**"**Summary:**`;
 
     const geminiResponse = await axios.post(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
       {
         contents: [{ parts: [{ text: storyPrompt }] }],
       },
@@ -119,12 +59,12 @@ router.post('/generate', auth, moderate, async (req, res) => {
     );
 
     const storyText =
-      geminiResponse.data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      geminiResponse.data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
     // Generate title and summary
     const metaPrompt = `Give a short, fun title and a 1-sentence summary for this story:\n\n${storyText}`;
     const metaResponse = await axios.post(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
       {
         contents: [{ parts: [{ text: metaPrompt }] }],
       },
@@ -134,52 +74,64 @@ router.post('/generate', auth, moderate, async (req, res) => {
     );
 
     const metaText =
-      metaResponse.data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    const [titleLine, summaryLine] = metaText.split('\n').filter(Boolean);
-    const title = titleLine?.replace(/^Title:\s*/i, '') || 'Untitled';
-    const summary = summaryLine?.replace(/^Summary:\s*/i, '') || '';
+      metaResponse.data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const [titleLine, summaryLine] = metaText.split("\n").filter(Boolean);
+    const title = titleLine?.replace(/^Title:\s*/i, "") || "Untitled";
+    const summary = summaryLine?.replace(/^Summary:\s*/i, "") || "";
 
-   // Create local mp3 file
-const audioFileName = `${uuidv4()}.mp3`;
-const tmpDir = path.join(__dirname, '..', 'tmp');
+    console.log(settings.voiceInput);
 
-// Ensure tmp directory exists
-if (!fs.existsSync(tmpDir)) {
-  fs.mkdirSync(tmpDir, { recursive: true });
-}
+    let audioUrl; // Declare outside the if block
 
-const audioFilePath = path.join(tmpDir, audioFileName);
+    if (settings.voiceInput) {
+      // Create local mp3 file
+      const audioFileName = `${uuidv4()}.mp3`;
+      const tmpDir = path.join(__dirname, "..", "tmp");
 
-const gtts = new gTTS(storyText, 'en');
-await new Promise((resolve, reject) => {
-  gtts.save(audioFilePath, (err) => {
-    if (err) return reject(err);
-    resolve();
-  });
-});
+      // Ensure tmp directory exists
+      if (!fs.existsSync(tmpDir)) {
+        fs.mkdirSync(tmpDir, { recursive: true });
+      }
 
-    // Upload to Cloudinary
-    const cloudinaryResult = await cloudinary.uploader.upload(audioFilePath, {
-      resource_type: 'video', // Use 'video' for audio files
-      folder: 'story-audio',
-      public_id: audioFileName.split('.')[0],
-    });
+      const audioFilePath = path.join(tmpDir, audioFileName);
 
-    // Delete local file
-    fs.unlinkSync(audioFilePath);
+      const gtts = new gTTS(storyText, "en");
+      await new Promise((resolve, reject) => {
+        gtts.save(audioFilePath, (err) => {
+          if (err) return reject(err);
+          resolve();
+        });
+      });
 
-    const audioUrl = cloudinaryResult.secure_url;
+      // Upload to Cloudinary
+      const cloudinaryResult = await cloudinary.uploader.upload(audioFilePath, {
+        resource_type: "video", // Use 'video' for audio files
+        folder: "story-audio",
+        public_id: audioFileName.split(".")[0],
+      });
+
+      // Delete local file
+      fs.unlinkSync(audioFilePath);
+
+      audioUrl = cloudinaryResult.secure_url;
+    } else {
+      console.log("Voice input is disabled; skipping audio generation.");
+    }
 
     // Save story to DB
-    const story = new Story({
+    const storyData = {
       userId,
       prompt,
       title,
       summary,
       text: storyText,
-      audioUrl,
-    });
+    };
 
+    if (audioUrl) {
+      storyData.audioUrl = audioUrl;
+    }
+
+    const story = new Story(storyData);
     await story.save();
 
     res.json({
@@ -190,52 +142,55 @@ await new Promise((resolve, reject) => {
       audioUrl,
     });
   } catch (error) {
-    console.error('Error generating story:', error?.response?.data || error.message);
-    res.status(500).json({ error: 'Failed to generate story' });
+    console.error(
+      "Error generating story:",
+      error?.response?.data || error.message
+    );
+    res.status(500).json({ error: "Failed to generate story" });
   }
 });
 
-
-
-
-router.get('/:id', auth, async (req, res) => {
+// Get Single Story by Id
+router.get("/:id", auth, async (req, res) => {
   try {
     const story = await Story.findById(req.params.id);
-    if (!story) return res.status(404).json({ error: 'Story not found' });
-    if (story.userId.toString() !== req.user.id) return res.status(403).json({ error: 'Unauthorized' });
+    if (!story) return res.status(404).json({ error: "Story not found" });
+    if (story.userId.toString() !== req.user.id)
+      return res.status(403).json({ error: "Unauthorized" });
     res.json(story);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Failed to fetch story' });
+    res.status(500).json({ error: "Failed to fetch story" });
   }
 });
 
-router.get('/', auth, async (req, res) => {
+// Get All Stories generated By The user
+router.get("/", auth, async (req, res) => {
   try {
     const stories = await Story.find({ userId: req.user.id });
     res.json(stories);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Failed to fetch stories' });
+    res.status(500).json({ error: "Failed to fetch stories" });
   }
 });
 
-router.delete('/:id', auth, async (req, res) => {
+// Delete Story
+router.delete("/:id", auth, async (req, res) => {
   try {
     const story = await Story.findById(req.params.id);
-    if (!story) return res.status(404).json({ error: 'Story not found' });
+    if (!story) return res.status(404).json({ error: "Story not found" });
 
     // Only allow the creator to delete their story
     if (story.userId.toString() !== req.user.id)
-      return res.status(403).json({ error: 'Unauthorized' });
+      return res.status(403).json({ error: "Unauthorized" });
 
     await story.remove(); // Or use Story.findByIdAndDelete(req.params.id)
-    res.json({ message: 'Story deleted successfully' });
+    res.json({ message: "Story deleted successfully" });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Failed to delete story' });
+    res.status(500).json({ error: "Failed to delete story" });
   }
 });
-
 
 module.exports = router;

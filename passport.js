@@ -1,10 +1,10 @@
-const passport = require('passport');
-const GoogleStrategy = require('passport-google-oauth20').Strategy;
-const User = require('./models/User');
+const passport = require("passport");
+const GoogleStrategy = require("passport-google-oauth20").Strategy;
+const User = require("./models/User");
 
-console.log('GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID);
+console.log("GOOGLE_CLIENT_ID:", process.env.GOOGLE_CLIENT_ID);
 if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-  console.error('Error: GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET missing');
+  console.error("Error: GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET missing");
   process.exit(1);
 }
 
@@ -13,8 +13,8 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: '/api/parent/auth/google/callback',
-      scope: ['openid', 'email', 'profile'],
+      callbackURL: "/api/parent/auth/google/callback",
+      scope: ["openid", "email", "profile"],
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
@@ -41,7 +41,7 @@ passport.use(
         await user.save();
         done(null, user);
       } catch (error) {
-        console.error('OAuth error:', error.message);
+        console.error("OAuth error:", error.message);
         done(error, null);
       }
     }
